@@ -102,7 +102,7 @@
             border-radius: 8px;
             overflow: auto;
             margin-bottom: 20px;
-            max-height: 300px;
+            max-height: 400px; /* 增加高度以显示更多歌曲 */
         }
         
         table {
@@ -579,13 +579,13 @@
             }
             
             for (let fileName in lrcFiles) {
-                addSongRow(fileName, 0, 20);
+                addSongRow(fileName, '', 15); // 开始时间默认为空，持续时间默认为15
             }
             
             addLog(`已自动填充 ${Object.keys(lrcFiles).length} 首歌曲`, 'success');
         }
         
-        function addSongRow(songName = '', startTime = 0, duration = 20) {
+        function addSongRow(songName = '', startTime = '', duration = 15) { // 修改默认值
             const tbody = document.getElementById('songsTableBody');
             const rowId = 'row_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
             
@@ -594,7 +594,7 @@
             row.innerHTML = `
                 <td class="index-column index-cell">${tbody.children.length + 1}</td>
                 <td class="song-name-column"><input type="text" value="${songName}" placeholder="输入歌曲名称" onchange="updateSongRow('${rowId}')"></td>
-                <td class="time-column"><input type="number" value="${startTime}" step="0.1" min="0" onchange="updateSongRow('${rowId}')"></td>
+                <td class="time-column"><input type="number" value="${startTime}" placeholder="0" step="0.1" min="0" onchange="updateSongRow('${rowId}')"></td>
                 <td class="time-column"><input type="number" value="${duration}" step="0.1" min="1" onchange="updateSongRow('${rowId}')"></td>
                 <td class="action-column">
                     <div class="action-buttons">
@@ -608,7 +608,7 @@
             songRows.push({
                 id: rowId,
                 songName: songName,
-                startTime: startTime,
+                startTime: startTime === '' ? 0 : parseFloat(startTime) || 0, // 处理空字符串
                 duration: duration
             });
             
@@ -635,8 +635,8 @@
             const inputs = row.getElementsByTagName('input');
             
             const songName = inputs[0].value;
-            const startTime = parseFloat(inputs[1].value) || 0;
-            const duration = parseFloat(inputs[2].value) || 20;
+            const startTime = inputs[1].value === '' ? 0 : parseFloat(inputs[1].value) || 0; // 处理空字符串
+            const duration = parseFloat(inputs[2].value) || 15;
             
             const rowIndex = songRows.findIndex(row => row.id === rowId);
             if (rowIndex !== -1) {
@@ -698,7 +698,7 @@
             return true;
         }
         
-        function extractLyrics(lrcContent, songName, startTime, duration = 20) {
+        function extractLyrics(lrcContent, songName, startTime, duration = 15) {
             try {
                 const lines = lrcContent.split('\n');
                 const extractedLyrics = [];
