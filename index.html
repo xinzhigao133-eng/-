@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>🎵 歌词提取工具（含联想输入）</title>
+    <title>🎵 歌词提取工具（含歌单顺序填充）</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
         /* --- 原有样式（保留并微调） --- */
@@ -46,6 +46,7 @@
         .log-success { background:#d4edda; color:#155724; border-left:3px solid #28a745; }
         .log-error { background:#f8d7da; color:#721c24; border-left:3px solid #dc3545; }
         .log-info { background:#d1ecf1; color:#0c5460; border-left:3px solid #17a2b8; }
+        .log-warning { background:#fff3cd; color:#856404; border-left:3px solid #ffc107; }
         .instructions { background:#fff3cd; border:1px solid #ffeaa7; border-radius:8px; padding:15px; margin-top:20px; font-size:14px; }
         .file-list { margin-top:15px; }
         .file-item { display:flex; justify-content:space-between; align-items:center; padding:8px; background:#f8f9fa; border-radius:4px; margin-bottom:5px; }
@@ -81,6 +82,30 @@
         }
         .autocomplete-item { padding:8px 10px; cursor:pointer; }
         .autocomplete-item:hover, .autocomplete-item.active { background:#f1f1f1; }
+        
+        /* --- 歌单输入样式 --- */
+        .playlist-container { margin-bottom:20px; }
+        .playlist-textarea {
+            width:100%;
+            padding:12px;
+            border:2px dashed #f39c12;
+            border-radius:8px;
+            background:#fff9e6;
+            font-size:14px;
+            line-height:1.5;
+            resize:vertical;
+            min-height:120px;
+        }
+        .playlist-textarea:focus {
+            outline:none;
+            border-color:#e67e22;
+            box-shadow:0 0 5px rgba(230,126,34,0.3);
+        }
+        .playlist-help {
+            font-size:12px;
+            color:#7f8c8d;
+            margin-top:5px;
+        }
     </style>
 </head>
 <body>
@@ -101,7 +126,18 @@
 
                 <div id="fileList" class="file-list"></div>
 
-                <h2 class="section-title" style="margin-top:20px;">歌曲列表编辑</h2>
+                <h2 class="section-title" style="margin-top:20px;">歌单顺序设置</h2>
+                
+                <div class="playlist-container">
+                    <textarea id="playlistInput" class="playlist-textarea" placeholder="请在此输入您的歌单顺序，每行一首歌名（示例）：
+富士山下
+爱情转移
+红玫瑰
+..."></textarea>
+                    <div class="playlist-help">每行输入一首歌曲名称，系统将严格按照此顺序填充歌曲列表</div>
+                </div>
+
+                <h2 class="section-title">歌曲列表编辑</h2>
 
                 <div class="batch-controls">
                     <input type="text" id="batchStartTime" class="batch-input" placeholder="批量设置开始时间(秒)">
@@ -125,7 +161,8 @@
                 </div>
 
                 <div class="button-group">
-                    <button class="btn-primary" onclick="autoFillSongs()">自动填充</button>
+                    <button class="btn-warning" onclick="fillSongsByPlaylist()">按歌单顺序填充</button>
+                    <button class="btn-primary" onclick="autoFillSongs()">按文件名填充</button>
                     <button class="btn-warning" onclick="addSongRow()">添加歌曲</button>
                     <button class="btn-success" onclick="processSongs()">开始处理</button>
                     <button class="btn-danger" onclick="clearAll()">清空全部</button>
@@ -138,16 +175,17 @@
                 <div class="instructions">
                     <h3>使用说明：</h3>
                     <p>1. 上传 LRC 文件或 ZIP 压缩包（支持多文件）</p>
-                    <p>2. 点击“自动填充”把文件名填入歌曲列表（或手动添加/编辑）</p>
-                    <p>3. 在“歌曲名称”输入时会根据上传的所有文件名联想建议（支持上下键和回车）</p>
-                    <p>4. 设置开始时间与持续时间，点击“开始处理”生成 Word 文档</p>
+                    <p>2. 在"歌单顺序设置"中输入您的歌单（每行一首歌名）</p>
+                    <p>3. 点击"按歌单顺序填充"严格按照歌单顺序填充歌曲列表</p>
+                    <p>4. 在"歌曲名称"输入时会根据上传的所有文件名联想建议（支持上下键和回车）</p>
+                    <p>5. 设置开始时间与持续时间，点击"开始处理"生成 Word 文档</p>
                 </div>
             </div>
 
             <div class="panel right-panel">
                 <h2 class="section-title">处理日志</h2>
                 <div class="log-container" id="logContainer">
-                    <div class="log-entry log-info">欢迎使用歌词提取工具！支持压缩包上传和批量编辑。</div>
+                    <div class="log-entry log-info">欢迎使用歌词提取工具！支持压缩包上传和歌单顺序填充。</div>
                 </div>
             </div>
         </div>
@@ -165,6 +203,64 @@
             for (let i = 0; i < 3; i++) addSongRow();
             updateIndexes();
         });
+
+        // ---------- 新增功能：按歌单顺序填充 ----------
+        function fillSongsByPlaylist() {
+            const playlistText = document.getElementById('playlistInput').value.trim();
+            if (!playlistText) {
+                addLog('请在歌单输入框中输入歌曲顺序', 'error');
+                return;
+            }
+
+            if (Object.keys(lrcFiles).length === 0) {
+                addLog('请先上传 LRC 文件', 'error');
+                return;
+            }
+
+            // 清空现有表格
+            const tbody = document.getElementById('songsTableBody');
+            tbody.innerHTML = '';
+            songRows = [];
+
+            // 解析歌单（每行一首歌）
+            const playlist = playlistText.split('\n')
+                .map(line => line.trim())
+                .filter(line => line.length > 0);
+
+            if (playlist.length === 0) {
+                addLog('歌单中没有有效的歌曲名称', 'error');
+                return;
+            }
+
+            let matchedCount = 0;
+            let unmatchedSongs = [];
+
+            // 按照歌单顺序填充
+            for (const songName of playlist) {
+                // 查找匹配的LRC文件
+                const matchedFiles = [];
+                for (const fileName in lrcFiles) {
+                    if (fuzzyMatch(songName, fileName)) {
+                        matchedFiles.push(fileName);
+                    }
+                }
+
+                if (matchedFiles.length > 0) {
+                    // 使用第一个匹配的文件
+                    addSongRow(songName, '', 15);
+                    matchedCount++;
+                } else {
+                    unmatchedSongs.push(songName);
+                }
+            }
+
+            // 记录填充结果
+            addLog(`已按歌单顺序填充 ${matchedCount} 首歌曲`, 'success');
+            
+            if (unmatchedSongs.length > 0) {
+                addLog(`以下 ${unmatchedSongs.length} 首歌曲未找到匹配的LRC文件：${unmatchedSongs.join(', ')}`, 'warning');
+            }
+        }
 
         // 更新表格序号
         function updateIndexes() {
@@ -390,7 +486,7 @@
             const keys = Object.keys(lrcFiles);
             if (keys.length === 0) { addLog('请先上传 LRC 文件', 'error'); return; }
             for (const name of keys) addSongRow(name, '', 15);
-            addLog(`已自动填充 ${keys.length} 首歌曲`, 'success');
+            addLog(`已按文件名填充 ${keys.length} 首歌曲`, 'success');
         }
 
         // ---------- 模糊匹配（用于处理时匹配文件名） ----------
@@ -512,6 +608,7 @@
             document.getElementById('logContainer').innerHTML = '<div class="log-entry log-info">已清空所有数据，可以重新开始。</div>';
             document.getElementById('batchStartTime').value = '';
             document.getElementById('batchDuration').value = '';
+            document.getElementById('playlistInput').value = '';
             updateProgress(0);
             lrcFiles = {};
             songRows = [];
