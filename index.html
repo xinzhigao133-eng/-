@@ -106,6 +106,111 @@
             color:#7f8c8d;
             margin-top:5px;
         }
+
+        /* --- 新增：预览面板样式 --- */
+        .preview-container {
+            flex: 1;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            overflow-y: auto;
+            font-size: 14px;
+            line-height: 1.5;
+            min-height: 200px;
+            max-height: 300px;
+            margin-bottom: 15px;
+        }
+        
+        .preview-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .preview-title {
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        
+        .preview-controls {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .preview-control-btn {
+            padding: 4px 8px;
+            font-size: 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background: #f8f9fa;
+            cursor: pointer;
+        }
+        
+        .preview-content {
+            white-space: pre-wrap;
+            font-family: 'Noto Sans SC', Arial, sans-serif;
+        }
+        
+        .preview-song-title {
+            font-weight: 600;
+            color: #3498db;
+            margin: 12px 0 6px 0;
+            padding-bottom: 4px;
+            border-bottom: 1px dashed #eee;
+        }
+        
+        .preview-lyric-line {
+            margin: 4px 0;
+            padding-left: 10px;
+        }
+        
+        .preview-empty {
+            text-align: center;
+            color: #7f8c8d;
+            font-style: italic;
+            padding: 20px;
+        }
+        
+        .preview-stats {
+            font-size: 12px;
+            color: #7f8c8d;
+            margin-top: 10px;
+            padding-top: 8px;
+            border-top: 1px solid #eee;
+        }
+        
+        .tab-container {
+            display: flex;
+            margin-bottom: 15px;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        .tab {
+            padding: 8px 16px;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.3s;
+        }
+        
+        .tab.active {
+            border-bottom-color: #3498db;
+            color: #3498db;
+            font-weight: 600;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+        }
     </style>
 </head>
 <body>
@@ -179,13 +284,34 @@
                     <p>3. 点击"按歌单顺序填充"严格按照歌单顺序填充歌曲列表</p>
                     <p>4. 在"歌曲名称"输入时会根据上传的所有文件名联想建议（支持上下键和回车）</p>
                     <p>5. 设置开始时间与持续时间，点击"开始处理"生成 Word 文档</p>
+                    <p>6. 右侧预览面板会实时显示将要提取的歌词内容</p>
                 </div>
             </div>
 
             <div class="panel right-panel">
-                <h2 class="section-title">处理日志</h2>
-                <div class="log-container" id="logContainer">
-                    <div class="log-entry log-info">欢迎使用歌词提取工具！支持压缩包上传和歌单顺序填充。</div>
+                <div class="tab-container">
+                    <div class="tab active" onclick="switchTab('preview')">📄 预览</div>
+                    <div class="tab" onclick="switchTab('log')">📋 日志</div>
+                </div>
+                
+                <div id="previewTab" class="tab-content active">
+                    <div class="preview-header">
+                        <div class="preview-title">输出预览</div>
+                        <div class="preview-controls">
+                            <button class="preview-control-btn" onclick="refreshPreview()">🔄 刷新</button>
+                            <button class="preview-control-btn" onclick="clearPreview()">🗑️ 清空</button>
+                        </div>
+                    </div>
+                    <div class="preview-container" id="previewContent">
+                        <div class="preview-empty">暂无预览内容<br>请先上传文件并设置歌曲参数</div>
+                    </div>
+                </div>
+                
+                <div id="logTab" class="tab-content">
+                    <h2 class="section-title">处理日志</h2>
+                    <div class="log-container" id="logContainer">
+                        <div class="log-entry log-info">欢迎使用歌词提取工具！支持压缩包上传和歌单顺序填充。</div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -196,13 +322,135 @@
         let lrcFiles = {};   // { fileNameNoExt: {name, content, source} }
         let songRows = [];   // [{id, songName, startTime, duration}]
         let AUTOCOMPLETE_MAX = 8;
+        let previewUpdateTimer = null;
 
         document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('lrcFiles').addEventListener('change', handleFileUpload);
             // 默认创建 3 行可编辑行
             for (let i = 0; i < 3; i++) addSongRow();
             updateIndexes();
+            
+            // 监听输入变化，实时更新预览
+            setupRealTimePreview();
         });
+
+        // --- 新增：实时预览功能 ---
+        function setupRealTimePreview() {
+            // 监听歌曲表格中的输入变化
+            document.addEventListener('input', function(e) {
+                if (e.target.classList.contains('song-input') || 
+                    e.target.classList.contains('start-input') || 
+                    e.target.classList.contains('duration-input')) {
+                    schedulePreviewUpdate();
+                }
+            });
+            
+            // 监听批量设置变化
+            document.getElementById('batchStartTime').addEventListener('input', schedulePreviewUpdate);
+            document.getElementById('batchDuration').addEventListener('input', schedulePreviewUpdate);
+            
+            // 监听歌单输入变化
+            document.getElementById('playlistInput').addEventListener('input', schedulePreviewUpdate);
+        }
+        
+        function schedulePreviewUpdate() {
+            // 使用防抖技术，避免频繁更新预览
+            if (previewUpdateTimer) {
+                clearTimeout(previewUpdateTimer);
+            }
+            previewUpdateTimer = setTimeout(updatePreview, 500);
+        }
+        
+        function updatePreview() {
+            if (Object.keys(lrcFiles).length === 0 || songRows.length === 0) {
+                showPreviewEmpty();
+                return;
+            }
+            
+            let previewContent = '';
+            let totalLyrics = 0;
+            let processedSongs = 0;
+            
+            const validRows = songRows.filter(s => s.songName && s.songName.trim());
+            
+            if (validRows.length === 0) {
+                showPreviewEmpty();
+                return;
+            }
+            
+            for (let i = 0; i < validRows.length; i++) {
+                const song = validRows[i];
+                
+                // 找到匹配的文件名
+                const matchedFiles = [];
+                for (const fileName in lrcFiles) {
+                    if (fuzzyMatch(song.songName, fileName)) {
+                        matchedFiles.push(fileName);
+                    }
+                }
+                
+                if (matchedFiles.length === 0) {
+                    previewContent += `<div class="preview-song-title">${escapeHtml(song.songName)}</div>`;
+                    previewContent += `<div class="preview-lyric-line" style="color:#e74c3c;">❌ 未找到匹配的歌词文件</div>`;
+                    continue;
+                }
+                
+                const matchedFile = lrcFiles[matchedFiles[0]];
+                const result = extractLyrics(matchedFile.content, song.songName, song.startTime, song.duration);
+                
+                previewContent += `<div class="preview-song-title">${escapeHtml(song.songName)}</div>`;
+                
+                if (result.success && result.lyrics.length > 0) {
+                    result.lyrics.forEach(lyric => {
+                        previewContent += `<div class="preview-lyric-line">${escapeHtml(lyric)}</div>`;
+                    });
+                    totalLyrics += result.lyrics.length;
+                    processedSongs++;
+                } else {
+                    previewContent += `<div class="preview-lyric-line" style="color:#f39c12;">⚠️ 该时间段内未找到歌词</div>`;
+                }
+                
+                // 添加歌曲间分隔
+                if (i < validRows.length - 1) {
+                    previewContent += `<div style="margin:10px 0; border-top:1px dashed #eee;"></div>`;
+                }
+            }
+            
+            const stats = `<div class="preview-stats">共 ${processedSongs} 首歌曲，${totalLyrics} 行歌词</div>`;
+            
+            document.getElementById('previewContent').innerHTML = previewContent + stats;
+        }
+        
+        function showPreviewEmpty() {
+            document.getElementById('previewContent').innerHTML = 
+                '<div class="preview-empty">暂无预览内容<br>请先上传文件并设置歌曲参数</div>';
+        }
+        
+        function refreshPreview() {
+            updatePreview();
+            addLog('预览已刷新', 'info');
+        }
+        
+        function clearPreview() {
+            showPreviewEmpty();
+            addLog('预览已清空', 'info');
+        }
+        
+        function switchTab(tabName) {
+            // 隐藏所有标签内容
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // 移除所有标签的激活状态
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // 激活选中的标签
+            document.getElementById(tabName + 'Tab').classList.add('active');
+            event.target.classList.add('active');
+        }
 
         // ---------- 新增功能：按歌单顺序填充 ----------
         function fillSongsByPlaylist() {
@@ -260,6 +508,9 @@
             if (unmatchedSongs.length > 0) {
                 addLog(`以下 ${unmatchedSongs.length} 首歌曲未找到匹配的LRC文件：${unmatchedSongs.join(', ')}`, 'warning');
             }
+            
+            // 更新预览
+            updatePreview();
         }
 
         // 更新表格序号
@@ -379,6 +630,9 @@
 
             // 将联想候选更新并保活（但不自动填充）
             enableAutoCompleteForSongs();
+            
+            // 更新预览
+            updatePreview();
         }
 
         // ---------- 动态表格（增删改） ----------
@@ -417,9 +671,18 @@
             const durationInput = row.querySelector('.duration-input');
             const delBtn = row.querySelector('.action-btn');
 
-            songInput.addEventListener('input', () => updateSongRow(rowId));
-            startInput.addEventListener('input', () => updateSongRow(rowId));
-            durationInput.addEventListener('input', () => updateSongRow(rowId));
+            songInput.addEventListener('input', () => {
+                updateSongRow(rowId);
+                schedulePreviewUpdate();
+            });
+            startInput.addEventListener('input', () => {
+                updateSongRow(rowId);
+                schedulePreviewUpdate();
+            });
+            durationInput.addEventListener('input', () => {
+                updateSongRow(rowId);
+                schedulePreviewUpdate();
+            });
             delBtn.addEventListener('click', () => deleteSongRow(rowId));
 
             // 绑定自动补全（候选动态来自 lrcFiles 的 keys）
@@ -442,6 +705,7 @@
             if (idx !== -1) songRows.splice(idx, 1);
             addLog('已删除歌曲行', 'info');
             updateIndexes();
+            schedulePreviewUpdate();
         }
 
         function updateSongRow(rowId) {
@@ -476,6 +740,7 @@
                 updatedCount++;
             }
             addLog(`已批量更新 ${updatedCount} 首歌曲的设置`, 'success');
+            schedulePreviewUpdate();
         }
 
         // ---------- 自动填充（根据 lrcFiles 的文件名填入） ----------
@@ -487,6 +752,7 @@
             if (keys.length === 0) { addLog('请先上传 LRC 文件', 'error'); return; }
             for (const name of keys) addSongRow(name, '', 15);
             addLog(`已按文件名填充 ${keys.length} 首歌曲`, 'success');
+            schedulePreviewUpdate();
         }
 
         // ---------- 模糊匹配（用于处理时匹配文件名） ----------
@@ -615,6 +881,7 @@
             // 移除遗留自动补全 wrapper（若有）
             document.querySelectorAll('.autocomplete-list').forEach(e => e.remove());
             for (let i = 0; i < 3; i++) addSongRow();
+            showPreviewEmpty();
         }
 
         // ---------- 自动补全实现 ----------
@@ -662,6 +929,7 @@
                         input.value = match;
                         updateSongRow(rowId);
                         closeWrapper();
+                        schedulePreviewUpdate();
                     });
                     wrapper.appendChild(div);
                 });
