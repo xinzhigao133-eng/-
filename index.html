@@ -3,10 +3,9 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>🎵 歌词提取工具（含歌单顺序填充）</title>
+    <title>🎵 歌词提取工具（增强版）</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
-        /* --- 原有样式（保留并微调） --- */
         * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans SC', Arial;
@@ -26,15 +25,19 @@
         .file-input-label { display:block; margin-bottom:8px; font-weight:600; color:#2c3e50; }
         .file-input { width:100%; padding:12px; border:2px dashed #3498db; border-radius:8px; background:#f8f9fa; font-size:16px; margin-bottom:10px; }
         .table-container { border:1px solid #ddd; border-radius:8px; overflow:auto; margin-bottom:20px; max-height:400px; }
-        table { width:100%; border-collapse:collapse; min-width:600px; }
+        table { width:100%; border-collapse:collapse; min-width:650px; }
         th { background:#34495e; color:white; padding:12px 8px; text-align:left; position:sticky; top:0; font-size:14px; }
         td { padding:10px 8px; border-bottom:1px solid #eee; font-size:14px; vertical-align:middle; }
         .index-column { width:5%; min-width:40px; text-align:center; }
-        .song-name-column { width:45%; min-width:150px; }
-        .time-column { width:20%; min-width:100px; }
+        .song-name-column { width:30%; min-width:130px; }
+        .start-time-column { width:20%; min-width:110px; }
+        .duration-column { width:10%; min-width:70px; }
         .action-column { width:10%; min-width:80px; }
         input { width:100%; padding:8px; border:1px solid #ddd; border-radius:4px; font-size:14px; }
         input:focus { outline:none; border-color:#3498db; box-shadow:0 0 5px rgba(52,152,219,0.3); }
+        .time-input-group { display:flex; gap:5px; }
+        .time-input { flex:1; text-align:center; }
+        .time-separator { line-height:35px; }
         .button-group { display:flex; gap:10px; margin-bottom:20px; flex-wrap:wrap; }
         button { padding:12px 16px; border:none; border-radius:6px; cursor:pointer; font-size:14px; font-weight:600; transition:all 0.3s; flex:1; min-width:120px; }
         .btn-primary { background:#3498db; color:#fff; }
@@ -64,9 +67,6 @@
             .main-content { flex-direction:row; }
             .left-panel { flex:1; border-right:2px solid #f0f0f0; border-bottom:none; }
             .right-panel { width:350px; }
-            .song-name-column { width:55%; }
-            .time-column { width:15%; }
-            .action-column { width:10%; }
         }
 
         /* --- 自动补全样式 --- */
@@ -107,7 +107,7 @@
             margin-top:5px;
         }
 
-        /* --- 新增：预览面板样式 --- */
+        /* --- 预览面板样式 --- */
         .preview-container {
             flex: 1;
             background: white;
@@ -181,12 +181,113 @@
             padding-top: 8px;
             border-top: 1px solid #eee;
         }
+        
+        /* --- 右键菜单样式 --- */
+        .context-menu {
+            position: absolute;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 1000;
+            min-width: 180px;
+            display: none;
+        }
+        
+        .context-menu-item {
+            padding: 10px 15px;
+            cursor: pointer;
+            border-bottom: 1px solid #f0f0f0;
+            transition: background 0.2s;
+        }
+        
+        .context-menu-item:last-child {
+            border-bottom: none;
+        }
+        
+        .context-menu-item:hover {
+            background: #f5f5f5;
+        }
+        
+        /* --- 纠错对话框样式 --- */
+        .correction-dialog {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            z-index: 2000;
+            width: 90%;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow: hidden;
+            display: none;
+        }
+        
+        .correction-header {
+            background: #3498db;
+            color: white;
+            padding: 15px;
+            font-weight: 600;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .correction-body {
+            padding: 15px;
+            max-height: 60vh;
+            overflow-y: auto;
+        }
+        
+        .correction-footer {
+            padding: 15px;
+            background: #f8f9fa;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+        
+        .search-results {
+            margin-top: 15px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .search-result-item {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+            cursor: pointer;
+        }
+        
+        .search-result-item:hover {
+            background: #f5f5f5;
+        }
+        
+        .search-result-item:last-child {
+            border-bottom: none;
+        }
+        
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 1500;
+            display: none;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>🎵 歌词提取工具</h1>
+            <h1>🎵 歌词提取工具（增强版）</h1>
             <p>从 LRC 文件中提取指定时间段的歌词（支持 ZIP 批量）</p>
         </header>
 
@@ -215,8 +316,11 @@
                 <h2 class="section-title">歌曲列表编辑</h2>
 
                 <div class="batch-controls">
-                    <input type="text" id="batchStartTime" class="batch-input" placeholder="批量设置开始时间(秒)">
-                    <input type="text" id="batchDuration" class="batch-input" placeholder="批量设置持续时间(秒)">
+                    <div style="flex:1; display:flex; gap:10px;">
+                        <input type="number" id="batchMinutes" class="batch-input" placeholder="批量设置分钟" min="0">
+                        <input type="number" id="batchSeconds" class="batch-input" placeholder="批量设置秒数" min="0" max="59">
+                    </div>
+                    <input type="number" id="batchDuration" class="batch-input" placeholder="批量设置持续时间(秒)" min="1" value="10">
                     <button class="btn-primary action-btn" onclick="applyBatchSettings()">应用</button>
                 </div>
 
@@ -226,8 +330,8 @@
                             <tr>
                                 <th class="index-column">序号</th>
                                 <th class="song-name-column">歌曲名称</th>
-                                <th class="time-column">开始时间(秒)</th>
-                                <th class="time-column">持续时间(秒)</th>
+                                <th class="start-time-column">开始时间</th>
+                                <th class="duration-column">持续时间(秒)</th>
                                 <th class="action-column">操作</th>
                             </tr>
                         </thead>
@@ -253,15 +357,16 @@
                     <p>2. 在"歌单顺序设置"中输入您的歌单（每行一首歌名）</p>
                     <p>3. 点击"按歌单顺序填充"严格按照歌单顺序填充歌曲列表</p>
                     <p>4. 在"歌曲名称"输入时会根据上传的所有文件名联想建议（支持上下键和回车）</p>
-                    <p>5. 设置开始时间与持续时间，点击"开始处理"生成 Word 文档</p>
-                    <p>6. 右侧预览面板会实时显示将要提取的歌词内容</p>
+                    <p>5. 右键点击歌曲行可进行纠错操作</p>
+                    <p>6. 设置开始时间与持续时间，点击"开始处理"生成 Word 文档</p>
+                    <p>7. 右侧预览面板会实时显示将要提取的歌词内容</p>
                 </div>
             </div>
 
             <div class="panel right-panel">
                 <h2 class="section-title">处理日志</h2>
                 <div class="log-container" id="logContainer">
-                    <div class="log-entry log-info">欢迎使用歌词提取工具！支持压缩包上传和歌单顺序填充。</div>
+                    <div class="log-entry log-info">欢迎使用歌词提取工具增强版！支持压缩包上传、歌单顺序填充和右键纠错。</div>
                 </div>
                 
                 <h2 class="section-title">输出预览</h2>
@@ -281,12 +386,45 @@
         </div>
     </div>
 
+    <!-- 右键菜单 -->
+    <div class="context-menu" id="contextMenu">
+        <div class="context-menu-item" onclick="showCorrectionDialog()">纠错匹配</div>
+        <div class="context-menu-item" onclick="rematchCurrentSong()">重新匹配此歌曲</div>
+        <div class="context-menu-item" onclick="copySongName()">复制歌曲名称</div>
+    </div>
+
+    <!-- 纠错对话框 -->
+    <div class="overlay" id="overlay"></div>
+    <div class="correction-dialog" id="correctionDialog">
+        <div class="correction-header">
+            <span>歌曲匹配纠错</span>
+            <button style="background:none;border:none;color:white;cursor:pointer;font-size:16px;" onclick="closeCorrectionDialog()">×</button>
+        </div>
+        <div class="correction-body">
+            <div id="currentMatchInfo">
+                <p><strong>当前匹配:</strong> <span id="currentSongName"></span></p>
+            </div>
+            <div style="margin-top:15px;">
+                <p><strong>搜索正确歌曲:</strong></p>
+                <input type="text" id="searchInput" style="width:100%;padding:8px;margin:8px 0;" placeholder="输入歌曲名称搜索">
+                <button class="btn-primary" onclick="searchSongs()" style="width:100%;">搜索</button>
+            </div>
+            <div class="search-results" id="searchResults" style="display:none;">
+                <!-- 搜索结果将在这里显示 -->
+            </div>
+        </div>
+        <div class="correction-footer">
+            <button class="btn-danger" onclick="closeCorrectionDialog()">取消</button>
+        </div>
+    </div>
+
     <script>
         // --- 全局状态 ---
         let lrcFiles = {};   // { fileNameNoExt: {name, content, source} }
-        let songRows = [];   // [{id, songName, startTime, duration}]
+        let songRows = [];   // [{id, songName, minutes, seconds, duration}]
         let AUTOCOMPLETE_MAX = 8;
         let previewUpdateTimer = null;
+        let currentContextRowId = null;
 
         document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('lrcFiles').addEventListener('change', handleFileUpload);
@@ -296,21 +434,138 @@
             
             // 监听输入变化，实时更新预览
             setupRealTimePreview();
+            
+            // 点击页面其他地方关闭右键菜单
+            document.addEventListener('click', function() {
+                document.getElementById('contextMenu').style.display = 'none';
+            });
         });
 
-        // --- 新增：实时预览功能 ---
+        // --- 右键菜单功能 ---
+        function showContextMenu(event, rowId) {
+            event.preventDefault();
+            currentContextRowId = rowId;
+            
+            const menu = document.getElementById('contextMenu');
+            menu.style.display = 'block';
+            menu.style.left = event.pageX + 'px';
+            menu.style.top = event.pageY + 'px';
+        }
+        
+        function showCorrectionDialog() {
+            if (!currentContextRowId) return;
+            
+            const row = songRows.find(r => r.id === currentContextRowId);
+            if (!row) return;
+            
+            document.getElementById('currentSongName').textContent = row.songName || '未命名歌曲';
+            document.getElementById('correctionDialog').style.display = 'block';
+            document.getElementById('overlay').style.display = 'block';
+            document.getElementById('contextMenu').style.display = 'none';
+        }
+        
+        function closeCorrectionDialog() {
+            document.getElementById('correctionDialog').style.display = 'none';
+            document.getElementById('overlay').style.display = 'none';
+            document.getElementById('searchResults').style.display = 'none';
+            document.getElementById('searchInput').value = '';
+        }
+        
+        function searchSongs() {
+            const query = document.getElementById('searchInput').value.trim();
+            if (!query) return;
+            
+            const resultsContainer = document.getElementById('searchResults');
+            resultsContainer.innerHTML = '';
+            
+            // 搜索匹配的歌曲
+            const matches = [];
+            for (const fileName in lrcFiles) {
+                if (fileName.toLowerCase().includes(query.toLowerCase())) {
+                    matches.push(fileName);
+                }
+            }
+            
+            if (matches.length === 0) {
+                resultsContainer.innerHTML = '<div style="padding:15px;text-align:center;color:#7f8c8d;">未找到匹配的歌曲</div>';
+            } else {
+                matches.forEach(match => {
+                    const item = document.createElement('div');
+                    item.className = 'search-result-item';
+                    item.textContent = match;
+                    item.onclick = function() {
+                        // 更新当前行的歌曲名称
+                        const rowIndex = songRows.findIndex(r => r.id === currentContextRowId);
+                        if (rowIndex !== -1) {
+                            songRows[rowIndex].songName = match;
+                            document.querySelector(`#${currentContextRowId} .song-input`).value = match;
+                            addLog(`已更正歌曲为: ${match}`, 'success');
+                            schedulePreviewUpdate();
+                        }
+                        closeCorrectionDialog();
+                    };
+                    resultsContainer.appendChild(item);
+                });
+            }
+            
+            resultsContainer.style.display = 'block';
+        }
+        
+        function rematchCurrentSong() {
+            if (!currentContextRowId) return;
+            
+            const row = songRows.find(r => r.id === currentContextRowId);
+            if (!row || !row.songName) return;
+            
+            // 查找匹配的LRC文件
+            const matchedFiles = [];
+            for (const fileName in lrcFiles) {
+                if (fuzzyMatch(row.songName, fileName)) {
+                    matchedFiles.push(fileName);
+                }
+            }
+            
+            if (matchedFiles.length === 0) {
+                addLog(`未找到匹配的歌词文件: ${row.songName}`, 'error');
+            } else if (matchedFiles.length === 1) {
+                addLog(`已重新匹配到: ${matchedFiles[0]}`, 'success');
+            } else {
+                addLog(`找到多个匹配文件，使用第一个: ${matchedFiles[0]} (共${matchedFiles.length}个)`, 'info');
+            }
+            
+            document.getElementById('contextMenu').style.display = 'none';
+        }
+        
+        function copySongName() {
+            if (!currentContextRowId) return;
+            
+            const row = songRows.find(r => r.id === currentContextRowId);
+            if (!row || !row.songName) return;
+            
+            navigator.clipboard.writeText(row.songName).then(function() {
+                addLog(`已复制歌曲名称: ${row.songName}`, 'success');
+            }, function() {
+                addLog('复制失败，请手动复制', 'error');
+            });
+            
+            document.getElementById('contextMenu').style.display = 'none';
+        }
+
+        // --- 实时预览功能 ---
         function setupRealTimePreview() {
             // 监听歌曲表格中的输入变化
             document.addEventListener('input', function(e) {
                 if (e.target.classList.contains('song-input') || 
-                    e.target.classList.contains('start-input') || 
+                    e.target.classList.contains('minute-input') || 
+                    e.target.classList.contains('second-input') || 
                     e.target.classList.contains('duration-input')) {
                     schedulePreviewUpdate();
                 }
             });
             
             // 监听批量设置变化
-            document.getElementById('batchStartTime').addEventListener('input', schedulePreviewUpdate);
+            document.getElementById('batchMinutes').addEventListener('input', schedulePreviewUpdate);
+            document.getElementById('batchSeconds').addEventListener('input', schedulePreviewUpdate);
             document.getElementById('batchDuration').addEventListener('input', schedulePreviewUpdate);
             
             // 监听歌单输入变化
@@ -344,6 +599,10 @@
             
             for (let i = 0; i < validRows.length; i++) {
                 const song = validRows[i];
+                // 处理空值情况，空字符串视为0
+                const minutes = song.minutes === '' ? 0 : parseInt(song.minutes) || 0;
+                const seconds = song.seconds === '' ? 0 : parseInt(song.seconds) || 0;
+                const startTime = minutes * 60 + seconds;
                 
                 // 找到匹配的文件名
                 const matchedFiles = [];
@@ -360,7 +619,7 @@
                 }
                 
                 const matchedFile = lrcFiles[matchedFiles[0]];
-                const result = extractLyrics(matchedFile.content, song.songName, song.startTime, song.duration);
+                const result = extractLyrics(matchedFile.content, song.songName, startTime, song.duration);
                 
                 previewContent += `<div class="preview-song-title">${escapeHtml(song.songName)}</div>`;
                 
@@ -442,8 +701,8 @@
                 }
 
                 if (matchedFiles.length > 0) {
-                    // 使用第一个匹配的文件
-                    addSongRow(songName, '', 15);
+                    // 使用第一个匹配的文件 - 分钟和秒留空，不预填0
+                    addSongRow(songName, '', '', 10);
                     matchedCount++;
                 } else {
                     unmatchedSongs.push(songName);
@@ -584,7 +843,7 @@
         }
 
         // ---------- 动态表格（增删改） ----------
-        function addSongRow(songName = '', startTime = '', duration = 15) {
+        function addSongRow(songName = '', minutes = '', seconds = '', duration = 10) {
             const tbody = document.getElementById('songsTableBody');
             const rowId = 'row_' + Date.now() + '_' + Math.random().toString(36).substr(2,9);
 
@@ -595,8 +854,14 @@
                 <td class="song-name-column">
                     <input type="text" class="song-input" value="${escapeHtml(songName)}" placeholder="输入歌曲名称">
                 </td>
-                <td class="time-column"><input type="number" class="start-input" value="${startTime === '' ? '' : startTime}" placeholder="0" step="0.1" min="0"></td>
-                <td class="time-column"><input type="number" class="duration-input" value="${duration}" step="0.1" min="1"></td>
+                <td class="start-time-column">
+                    <div class="time-input-group">
+                        <input type="number" class="minute-input time-input" value="${minutes}" placeholder="分" min="0">
+                        <span class="time-separator">:</span>
+                        <input type="number" class="second-input time-input" value="${seconds}" placeholder="秒" min="0" max="59">
+                    </div>
+                </td>
+                <td class="duration-column"><input type="number" class="duration-input" value="${duration}" step="0.1" min="1"></td>
                 <td class="action-column">
                     <div class="action-buttons">
                         <button class="btn-danger action-btn" type="button">删除</button>
@@ -609,13 +874,15 @@
             songRows.push({
                 id: rowId,
                 songName: songName,
-                startTime: startTime === '' ? 0 : parseFloat(startTime) || 0,
-                duration: parseFloat(duration) || 15
+                minutes: minutes,
+                seconds: seconds,
+                duration: duration
             });
 
             // 绑定事件：输入改变、删除按钮、自动补全
             const songInput = row.querySelector('.song-input');
-            const startInput = row.querySelector('.start-input');
+            const minuteInput = row.querySelector('.minute-input');
+            const secondInput = row.querySelector('.second-input');
             const durationInput = row.querySelector('.duration-input');
             const delBtn = row.querySelector('.action-btn');
 
@@ -623,7 +890,11 @@
                 updateSongRow(rowId);
                 schedulePreviewUpdate();
             });
-            startInput.addEventListener('input', () => {
+            minuteInput.addEventListener('input', () => {
+                updateSongRow(rowId);
+                schedulePreviewUpdate();
+            });
+            secondInput.addEventListener('input', () => {
                 updateSongRow(rowId);
                 schedulePreviewUpdate();
             });
@@ -632,6 +903,9 @@
                 schedulePreviewUpdate();
             });
             delBtn.addEventListener('click', () => deleteSongRow(rowId));
+            
+            // 右键菜单事件
+            row.addEventListener('contextmenu', (e) => showContextMenu(e, rowId));
 
             // 绑定自动补全（候选动态来自 lrcFiles 的 keys）
             setupAutoComplete(songInput, () => Object.keys(lrcFiles), rowId);
@@ -661,29 +935,44 @@
             if (!row) return;
             const inputs = row.getElementsByTagName('input');
             const songName = inputs[0].value;
-            const startTime = inputs[1].value === '' ? 0 : parseFloat(inputs[1].value) || 0;
-            const duration = parseFloat(inputs[2].value) || 15;
+            const minutes = inputs[1].value; // 直接保存字符串，不转换为数字
+            const seconds = inputs[2].value; // 直接保存字符串，不转换为数字
+            const duration = parseFloat(inputs[3].value) || 10;
 
             const idx = songRows.findIndex(r => r.id === rowId);
             if (idx !== -1) {
-                songRows[idx] = { id: rowId, songName: songName, startTime: startTime, duration: duration };
+                songRows[idx] = { 
+                    id: rowId, 
+                    songName: songName, 
+                    minutes: minutes, 
+                    seconds: seconds, 
+                    duration: duration 
+                };
             }
         }
 
         function applyBatchSettings() {
-            const batchStartTime = document.getElementById('batchStartTime').value;
+            const batchMinutes = document.getElementById('batchMinutes').value;
+            const batchSeconds = document.getElementById('batchSeconds').value;
             const batchDuration = document.getElementById('batchDuration').value;
-            let startTime = batchStartTime ? parseFloat(batchStartTime) : null;
+            
+            let minutes = batchMinutes !== '' ? batchMinutes : null;
+            let seconds = batchSeconds !== '' ? batchSeconds : null;
             let duration = batchDuration ? parseFloat(batchDuration) : null;
-            if (startTime === null && duration === null) { addLog('请输入要批量设置的值', 'error'); return; }
+            
+            if (minutes === null && seconds === null && duration === null) { 
+                addLog('请输入要批量设置的值', 'error'); 
+                return; 
+            }
 
             let updatedCount = 0;
             for (let song of songRows) {
                 const row = document.getElementById(song.id);
                 if (!row) continue;
                 const inputs = row.getElementsByTagName('input');
-                if (startTime !== null) inputs[1].value = startTime;
-                if (duration !== null) inputs[2].value = duration;
+                if (minutes !== null) inputs[1].value = minutes;
+                if (seconds !== null) inputs[2].value = seconds;
+                if (duration !== null) inputs[3].value = duration;
                 updateSongRow(song.id);
                 updatedCount++;
             }
@@ -698,7 +987,7 @@
             songRows = [];
             const keys = Object.keys(lrcFiles);
             if (keys.length === 0) { addLog('请先上传 LRC 文件', 'error'); return; }
-            for (const name of keys) addSongRow(name, '', 15);
+            for (const name of keys) addSongRow(name, '', '', 10);
             addLog(`已按文件名填充 ${keys.length} 首歌曲`, 'success');
             schedulePreviewUpdate();
         }
@@ -715,7 +1004,7 @@
         }
 
         // ---------- 提取歌词（根据时间戳） ----------
-        function extractLyrics(lrcContent, songName, startTime, duration = 15) {
+        function extractLyrics(lrcContent, songName, startTime, duration = 10) {
             try {
                 const lines = lrcContent.split(/\r?\n/);
                 const extractedLyrics = [];
@@ -771,7 +1060,13 @@
             for (let i = 0; i < songRows.length; i++) {
                 const song = songRows[i];
                 if (!song.songName || !song.songName.trim()) continue;
-                addLog(`处理歌曲 ${i+1}/${totalSongs}: ${song.songName} (从 ${song.startTime} 秒开始, 持续 ${song.duration} 秒)`, 'info');
+                
+                // 处理空值情况，空字符串视为0
+                const minutes = song.minutes === '' ? 0 : parseInt(song.minutes) || 0;
+                const seconds = song.seconds === '' ? 0 : parseInt(song.seconds) || 0;
+                const startTime = minutes * 60 + seconds;
+                
+                addLog(`处理歌曲 ${i+1}/${totalSongs}: ${song.songName} (从 ${minutes}:${seconds} 开始, 持续 ${song.duration} 秒)`, 'info');
 
                 // 找到匹配的文件名（fuzzy）
                 const matchedFiles = [];
@@ -786,7 +1081,7 @@
                 if (matchedFiles.length > 1) addLog(`找到多个匹配文件，使用第一个: ${matchedFiles.join(', ')}`, 'info');
 
                 const matchedFile = lrcFiles[matchedFiles[0]];
-                const result = extractLyrics(matchedFile.content, song.songName, song.startTime, song.duration);
+                const result = extractLyrics(matchedFile.content, song.songName, startTime, song.duration);
                 if (result.success && result.lyrics.length > 0) {
                     docContent += `<h2>${escapeHtml(song.songName)}</h2>`;
                     for (const lyric of result.lyrics) docContent += `<p>${escapeHtml(lyric)}</p>`;
@@ -820,8 +1115,9 @@
             document.getElementById('fileList').innerHTML = '';
             document.getElementById('songsTableBody').innerHTML = '';
             document.getElementById('logContainer').innerHTML = '<div class="log-entry log-info">已清空所有数据，可以重新开始。</div>';
-            document.getElementById('batchStartTime').value = '';
-            document.getElementById('batchDuration').value = '';
+            document.getElementById('batchMinutes').value = '';
+            document.getElementById('batchSeconds').value = '';
+            document.getElementById('batchDuration').value = '10';
             document.getElementById('playlistInput').value = '';
             updateProgress(0);
             lrcFiles = {};
