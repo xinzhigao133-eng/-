@@ -44,6 +44,7 @@
         .btn-success { background:#27ae60; color:#fff; }
         .btn-danger { background:#e74c3c; color:#fff; }
         .btn-warning { background:#f39c12; color:#fff; }
+        .btn-info { background:#17a2b8; color:#fff; }
         .log-container { flex:1; background:white; border:1px solid #ddd; border-radius:8px; padding:15px; overflow-y:auto; font-family:'Courier New', monospace; font-size:13px; line-height:1.4; min-height:150px; max-height:200px; margin-bottom:15px; }
         .log-entry { margin-bottom:8px; padding:5px; border-radius:3px; }
         .log-success { background:#d4edda; color:#155724; border-left:3px solid #28a745; }
@@ -282,6 +283,21 @@
             z-index: 1500;
             display: none;
         }
+        
+        /* --- 保存状态指示器 --- */
+        .save-status {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 10px 15px;
+            border-radius: 5px;
+            background: #28a745;
+            color: white;
+            font-size: 14px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            z-index: 1000;
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -344,6 +360,8 @@
                     <button class="btn-primary" onclick="autoFillSongs()">按文件名填充</button>
                     <button class="btn-warning" onclick="addSongRow()">添加歌曲</button>
                     <button class="btn-success" onclick="processSongs()">开始处理</button>
+                    <button class="btn-info" onclick="saveProgress()">保存进度</button>
+                    <button class="btn-info" onclick="loadProgress()">加载进度</button>
                     <button class="btn-danger" onclick="clearAll()">清空全部</button>
                 </div>
 
@@ -359,7 +377,8 @@
                     <p>4. 在"歌曲名称"输入时会根据上传的所有文件名联想建议（支持上下键和回车）</p>
                     <p>5. 右键点击歌曲行可进行纠错操作</p>
                     <p>6. 设置开始时间与持续时间，点击"开始处理"生成 Word 文档</p>
-                    <p>7. 右侧预览面板会实时显示将要提取的歌词内容</p>
+                    <p>7. 使用"保存进度"保存当前工作状态，下次可"加载进度"继续处理</p>
+                    <p>8. 右侧预览面板会实时显示将要提取的歌词内容</p>
                 </div>
             </div>
 
@@ -385,6 +404,9 @@
             </div>
         </div>
     </div>
+
+    <!-- 保存状态指示器 -->
+    <div class="save-status" id="saveStatus"></div>
 
     <!-- 右键菜单 -->
     <div class="context-menu" id="contextMenu">
@@ -425,6 +447,7 @@
         let AUTOCOMPLETE_MAX = 8;
         let previewUpdateTimer = null;
         let currentContextRowId = null;
+        let autoSaveTimer = null;
 
         document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('lrcFiles').addEventListener('change', handleFileUpload);
@@ -439,7 +462,119 @@
             document.addEventListener('click', function() {
                 document.getElementById('contextMenu').style.display = 'none';
             });
+            
+            // 尝试自动加载上次保存的进度
+            tryAutoLoadProgress();
         });
+
+        // --- 本地保存功能 ---
+        function saveProgress() {
+            try {
+                const progressData = {
+                    songRows: songRows.map(row => ({
+                        songName: row.songName,
+                        minutes: row.minutes,
+                        seconds: row.seconds,
+                        duration: row.duration
+                    })),
+                    playlist: document.getElementById('playlistInput').value,
+                    batchMinutes: document.getElementById('batchMinutes').value,
+                    batchSeconds: document.getElementById('batchSeconds').value,
+                    batchDuration: document.getElementById('batchDuration').value,
+                    timestamp: new Date().toISOString()
+                };
+                
+                localStorage.setItem('lyricExtractorProgress', JSON.stringify(progressData));
+                showSaveStatus('进度已保存', 'success');
+                addLog('进度已保存到本地存储', 'success');
+            } catch (error) {
+                showSaveStatus('保存失败', 'error');
+                addLog('保存进度失败: ' + error.message, 'error');
+            }
+        }
+        
+        function loadProgress() {
+            try {
+                const savedData = localStorage.getItem('lyricExtractorProgress');
+                if (!savedData) {
+                    addLog('没有找到已保存的进度', 'warning');
+                    return;
+                }
+                
+                const progressData = JSON.parse(savedData);
+                
+                // 清空现有表格
+                const tbody = document.getElementById('songsTableBody');
+                tbody.innerHTML = '';
+                songRows = [];
+                
+                // 恢复歌单
+                document.getElementById('playlistInput').value = progressData.playlist || '';
+                
+                // 恢复批量设置
+                document.getElementById('batchMinutes').value = progressData.batchMinutes || '';
+                document.getElementById('batchSeconds').value = progressData.batchSeconds || '';
+                document.getElementById('batchDuration').value = progressData.batchDuration || '10';
+                
+                // 恢复歌曲列表
+                if (progressData.songRows && progressData.songRows.length > 0) {
+                    progressData.songRows.forEach(song => {
+                        addSongRow(
+                            song.songName || '',
+                            song.minutes || '',
+                            song.seconds || '',
+                            song.duration || 10
+                        );
+                    });
+                    addLog(`已加载 ${progressData.songRows.length} 首歌曲`, 'success');
+                } else {
+                    addLog('已加载进度，但没有歌曲数据', 'info');
+                }
+                
+                showSaveStatus('进度已加载', 'success');
+                
+                // 更新预览
+                updatePreview();
+                
+            } catch (error) {
+                addLog('加载进度失败: ' + error.message, 'error');
+                showSaveStatus('加载失败', 'error');
+            }
+        }
+        
+        function tryAutoLoadProgress() {
+            // 检查是否有保存的进度
+            const savedData = localStorage.getItem('lyricExtractorProgress');
+            if (savedData) {
+                addLog('检测到有保存的进度，点击"加载进度"按钮可恢复', 'info');
+            }
+        }
+        
+        function showSaveStatus(message, type) {
+            const status = document.getElementById('saveStatus');
+            status.textContent = message;
+            status.style.display = 'block';
+            status.style.background = type === 'success' ? '#28a745' : '#dc3545';
+            
+            setTimeout(() => {
+                status.style.display = 'none';
+            }, 3000);
+        }
+        
+        // 自动保存功能（每30秒自动保存一次）
+        function setupAutoSave() {
+            // 清除之前的定时器
+            if (autoSaveTimer) {
+                clearInterval(autoSaveTimer);
+            }
+            
+            // 设置新的定时器
+            autoSaveTimer = setInterval(() => {
+                if (songRows.length > 0) {
+                    saveProgress();
+                }
+            }, 30000); // 30秒自动保存一次
+        }
 
         // --- 右键菜单功能 ---
         function showContextMenu(event, rowId) {
@@ -570,6 +705,9 @@
             
             // 监听歌单输入变化
             document.getElementById('playlistInput').addEventListener('input', schedulePreviewUpdate);
+            
+            // 启动自动保存
+            setupAutoSave();
         }
         
         function schedulePreviewUpdate() {
@@ -1126,6 +1264,10 @@
             document.querySelectorAll('.autocomplete-list').forEach(e => e.remove());
             for (let i = 0; i < 3; i++) addSongRow();
             showPreviewEmpty();
+            
+            // 清除保存的进度
+            localStorage.removeItem('lyricExtractorProgress');
+            addLog('已清空所有数据并删除保存的进度', 'info');
         }
 
         // ---------- 自动补全实现 ----------
