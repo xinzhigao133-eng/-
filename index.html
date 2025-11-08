@@ -20,7 +20,7 @@
         .panel { padding:15px; }
         .left-panel { border-bottom:2px solid #f0f0f0; }
         .right-panel { background:#f8f9fa; flex:1; display:flex; flex-direction:column; }
-        .section-title { font-size:1.3em; margin-bottom:15px; color:#2c3e50; border-bottom:2px solid #3498db; padding-bottom:10px; }
+        .section-title { font-size:1.3em; margin-bottom:15px; color:#2c3e50; border-bottom:2px solid #3498db; padding-bottom:10px; display:flex; justify-content:space-between; align-items:center; }
         .file-input-container { margin-bottom:20px; }
         .file-input-label { display:block; margin-bottom:8px; font-weight:600; color:#2c3e50; }
         .file-input { width:100%; padding:12px; border:2px dashed #3498db; border-radius:8px; background:#f8f9fa; font-size:16px; margin-bottom:10px; }
@@ -119,7 +119,7 @@
             font-size: 14px;
             line-height: 1.5;
             min-height: 250px;
-            max-height: 500px; /* 增加高度 */
+            max-height: 500px;
         }
         
         .preview-header {
@@ -182,25 +182,6 @@
             margin-top: 10px;
             padding-top: 8px;
             border-top: 1px solid #eee;
-        }
-        
-        /* 可编辑预览内容样式 */
-        .editable-preview {
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            padding: 10px;
-            background: #fff;
-            min-height: 300px;
-            max-height: 450px;
-            overflow-y: auto;
-            font-family: 'Noto Sans SC', Arial, sans-serif;
-            line-height: 1.5;
-        }
-        
-        .editable-preview:focus {
-            outline: none;
-            border-color: #3498db;
-            box-shadow: 0 0 5px rgba(52,152,219,0.3);
         }
         
         /* --- 右键菜单样式 --- */
@@ -331,6 +312,49 @@
             padding: 10px;
             font-size: 14px;
         }
+        
+        /* --- 搜索框样式 --- */
+        .search-container {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            align-items: center;
+        }
+        
+        .search-input {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        .search-button {
+            padding: 8px 16px;
+            background: #3498db;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        .search-button:hover {
+            background: #2980b9;
+        }
+        
+        .search-results-count {
+            font-size: 12px;
+            color: #7f8c8d;
+            margin-left: 10px;
+        }
+        
+        /* --- 搜索结果高亮 --- */
+        .search-highlight {
+            background-color: #fff3cd;
+            padding: 2px 4px;
+            border-radius: 2px;
+        }
     </style>
 </head>
 <body>
@@ -342,7 +366,15 @@
 
         <div class="main-content">
             <div class="panel left-panel">
-                <h2 class="section-title">上传文件</h2>
+                <div class="section-title">
+                    <span>上传文件</span>
+                    <div class="search-container">
+                        <input type="text" id="searchInput" class="search-input" placeholder="搜索歌曲...">
+                        <button class="search-button" onclick="searchSongs()">搜索</button>
+                        <span id="searchResultsCount" class="search-results-count"></span>
+                    </div>
+                </div>
+                
                 <div class="file-input-container">
                     <label class="file-input-label">选择 LRC 文件或 ZIP 压缩包：</label>
                     <input type="file" id="lrcFiles" accept=".lrc,.zip" multiple class="file-input">
@@ -413,12 +445,13 @@
                     <p>2. 在"歌单顺序设置"中输入您的歌单（每行一首歌名）</p>
                     <p>3. 点击"按歌单顺序填充"严格按照歌单顺序填充歌曲列表</p>
                     <p>4. 在"歌曲名称"输入时会根据上传的所有文件名联想建议（支持上下键和回车）</p>
-                    <p>5. 右键点击歌曲行可进行纠错操作</p>
-                    <p>6. 设置开始时间与持续时间，点击"开始处理"生成 Word 文档</p>
-                    <p>7. 使用"保存进度"保存当前工作状态，下次可"加载进度"继续处理</p>
-                    <p>8. 右侧预览面板会实时显示将要提取的歌词内容，可直接编辑</p>
-                    <p>9. 使用"导出项目文件"保存完整工作状态到.lyricproject文件</p>
-                    <p>10. 使用"导入项目文件"从.lyricproject文件恢复完整工作状态</p>
+                    <p>5. 使用右上角搜索框可以快速搜索和定位歌曲</p>
+                    <p>6. 右键点击歌曲行可进行纠错操作</p>
+                    <p>7. 设置开始时间与持续时间，点击"开始处理"生成 Word 文档</p>
+                    <p>8. 使用"保存进度"保存当前工作状态，下次可"加载进度"继续处理</p>
+                    <p>9. 右侧预览面板会实时显示将要提取的歌词内容</p>
+                    <p>10. 使用"导出项目文件"保存完整工作状态到.lyricproject文件</p>
+                    <p>11. 使用"导入项目文件"从.lyricproject文件恢复完整工作状态</p>
                 </div>
             </div>
 
@@ -434,8 +467,6 @@
                         <div class="preview-title">实时预览</div>
                         <div class="preview-controls">
                             <button class="preview-control-btn" onclick="refreshPreview()">🔄 刷新</button>
-                            <button class="preview-control-btn" onclick="toggleEditPreview()">✏️ 编辑</button>
-                            <button class="preview-control-btn" onclick="savePreviewEdits()">💾 保存</button>
                             <button class="preview-control-btn" onclick="clearPreview()">🗑️ 清空</button>
                         </div>
                     </div>
@@ -471,10 +502,10 @@
             </div>
             <div style="margin-top:15px;">
                 <p><strong>搜索正确歌曲:</strong></p>
-                <input type="text" id="searchInput" style="width:100%;padding:8px;margin:8px 0;" placeholder="输入歌曲名称搜索">
-                <button class="btn-primary" onclick="searchSongs()" style="width:100%;">搜索</button>
+                <input type="text" id="searchCorrectionInput" style="width:100%;padding:8px;margin:8px 0;" placeholder="输入歌曲名称搜索">
+                <button class="btn-primary" onclick="searchSongsForCorrection()" style="width:100%;">搜索</button>
             </div>
-            <div class="search-results" id="searchResults" style="display:none;">
+            <div class="search-results" id="searchCorrectionResults" style="display:none;">
                 <!-- 搜索结果将在这里显示 -->
             </div>
         </div>
@@ -491,8 +522,6 @@
         let previewUpdateTimer = null;
         let currentContextRowId = null;
         let autoSaveTimer = null;
-        let isPreviewEditable = false;
-        let editedPreviewContent = null;
 
         document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('lrcFiles').addEventListener('change', handleFileUpload);
@@ -510,7 +539,52 @@
             
             // 尝试自动加载上次保存的进度
             tryAutoLoadProgress();
+            
+            // 搜索框回车事件
+            document.getElementById('searchInput').addEventListener('keyup', function(e) {
+                if (e.key === 'Enter') {
+                    searchSongs();
+                }
+            });
         });
+
+        // --- 搜索功能 ---
+        function searchSongs() {
+            const query = document.getElementById('searchInput').value.trim().toLowerCase();
+            if (!query) {
+                // 清空搜索，显示所有行
+                const allRows = document.querySelectorAll('#songsTableBody tr');
+                allRows.forEach(row => {
+                    row.style.display = '';
+                });
+                document.getElementById('searchResultsCount').textContent = '';
+                return;
+            }
+            
+            let matchCount = 0;
+            const allRows = document.querySelectorAll('#songsTableBody tr');
+            
+            allRows.forEach(row => {
+                const songInput = row.querySelector('.song-input');
+                if (songInput) {
+                    const songName = songInput.value.toLowerCase();
+                    if (songName.includes(query)) {
+                        row.style.display = '';
+                        matchCount++;
+                    } else {
+                        row.style.display = 'none';
+                    }
+                }
+            });
+            
+            document.getElementById('searchResultsCount').textContent = `找到 ${matchCount} 个匹配项`;
+            
+            if (matchCount === 0) {
+                addLog(`未找到包含"${query}"的歌曲`, 'warning');
+            } else {
+                addLog(`找到 ${matchCount} 个包含"${query}"的歌曲`, 'info');
+            }
+        }
 
         // --- 项目文件导出/导入功能 ---
         function exportProject() {
@@ -655,88 +729,6 @@
                 `;
                 fileList.appendChild(fileItem);
             }
-        }
-
-        // --- 预览编辑功能 ---
-        function toggleEditPreview() {
-            const previewContent = document.getElementById('previewContent');
-            
-            if (isPreviewEditable) {
-                // 退出编辑模式
-                previewContent.innerHTML = editedPreviewContent || previewContent.value;
-                isPreviewEditable = false;
-                addLog('已退出预览编辑模式', 'info');
-            } else {
-                // 进入编辑模式
-                editedPreviewContent = previewContent.innerHTML;
-                previewContent.innerHTML = '';
-                
-                const textarea = document.createElement('textarea');
-                textarea.className = 'editable-preview';
-                textarea.value = extractTextFromPreview(editedPreviewContent);
-                previewContent.appendChild(textarea);
-                
-                isPreviewEditable = true;
-                addLog('已进入预览编辑模式，编辑完成后点击保存', 'info');
-            }
-        }
-        
-        function savePreviewEdits() {
-            if (!isPreviewEditable) {
-                addLog('当前不在编辑模式', 'warning');
-                return;
-            }
-            
-            const textarea = document.querySelector('.editable-preview');
-            if (!textarea) {
-                addLog('未找到编辑内容', 'error');
-                return;
-            }
-            
-            const editedContent = textarea.value;
-            // 这里可以添加逻辑将编辑的内容应用到实际数据中
-            // 目前只是简单保存到预览显示
-            
-            document.getElementById('previewContent').innerHTML = formatPreviewContent(editedContent);
-            isPreviewEditable = false;
-            
-            addLog('预览编辑已保存', 'success');
-        }
-        
-        function extractTextFromPreview(htmlContent) {
-            // 从HTML预览内容中提取纯文本
-            const tempDiv = document.createElement('div');
-            tempDiv.innerHTML = htmlContent;
-            return tempDiv.textContent || tempDiv.innerText || '';
-        }
-        
-        function formatPreviewContent(textContent) {
-            // 将纯文本格式化为预览HTML
-            if (!textContent.trim()) {
-                return '<div class="preview-empty">暂无预览内容<br>请先上传文件并设置歌曲参数</div>';
-            }
-            
-            const lines = textContent.split('\n');
-            let html = '';
-            let inSongSection = false;
-            
-            for (const line of lines) {
-                if (line.trim() === '') continue;
-                
-                // 检测是否是歌曲标题（简单启发式规则）
-                if (line.includes(' - ') || line.includes('——') || 
-                    (line.length < 50 && !line.includes(':') && !line.includes('：') && !line.match(/\d{2}:\d{2}/))) {
-                    if (inSongSection) {
-                        html += '</div><div style="margin:10px 0; border-top:1px dashed #eee;"></div>';
-                    }
-                    html += `<div class="preview-song-title">${escapeHtml(line)}</div>`;
-                    inSongSection = true;
-                } else {
-                    html += `<div class="preview-lyric-line">${escapeHtml(line)}</div>`;
-                }
-            }
-            
-            return html;
         }
 
         // --- 插入行功能 ---
@@ -975,15 +967,15 @@
         function closeCorrectionDialog() {
             document.getElementById('correctionDialog').style.display = 'none';
             document.getElementById('overlay').style.display = 'none';
-            document.getElementById('searchResults').style.display = 'none';
-            document.getElementById('searchInput').value = '';
+            document.getElementById('searchCorrectionResults').style.display = 'none';
+            document.getElementById('searchCorrectionInput').value = '';
         }
         
-        function searchSongs() {
-            const query = document.getElementById('searchInput').value.trim();
+        function searchSongsForCorrection() {
+            const query = document.getElementById('searchCorrectionInput').value.trim();
             if (!query) return;
             
-            const resultsContainer = document.getElementById('searchResults');
+            const resultsContainer = document.getElementById('searchCorrectionResults');
             resultsContainer.innerHTML = '';
             
             // 搜索匹配的歌曲
@@ -1092,8 +1084,6 @@
         }
         
         function updatePreview() {
-            if (isPreviewEditable) return; // 如果正在编辑，不自动更新预览
-            
             if (Object.keys(lrcFiles).length === 0 || songRows.length === 0) {
                 showPreviewEmpty();
                 return;
@@ -1633,11 +1623,11 @@
             document.getElementById('batchSeconds').value = '';
             document.getElementById('batchDuration').value = '10';
             document.getElementById('playlistInput').value = '';
+            document.getElementById('searchInput').value = '';
+            document.getElementById('searchResultsCount').textContent = '';
             updateProgress(0);
             lrcFiles = {};
             songRows = [];
-            isPreviewEditable = false;
-            editedPreviewContent = null;
             // 移除遗留自动补全 wrapper（若有）
             document.querySelectorAll('.autocomplete-list').forEach(e => e.remove());
             for (let i = 0; i < 3; i++) addSongRow();
