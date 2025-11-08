@@ -32,7 +32,7 @@
         .song-name-column { width:30%; min-width:130px; }
         .start-time-column { width:20%; min-width:110px; }
         .duration-column { width:10%; min-width:70px; }
-        .action-column { width:10%; min-width:80px; }
+        .action-column { width:15%; min-width:120px; }
         input { width:100%; padding:8px; border:1px solid #ddd; border-radius:4px; font-size:14px; }
         input:focus { outline:none; border-color:#3498db; box-shadow:0 0 5px rgba(52,152,219,0.3); }
         .time-input-group { display:flex; gap:5px; }
@@ -67,7 +67,7 @@
         @media (min-width:768px) {
             .main-content { flex-direction:row; }
             .left-panel { flex:1; border-right:2px solid #f0f0f0; border-bottom:none; }
-            .right-panel { width:350px; }
+            .right-panel { width:400px; }
         }
 
         /* --- 自动补全样式 --- */
@@ -108,7 +108,7 @@
             margin-top:5px;
         }
 
-        /* --- 预览面板样式 --- */
+        /* --- 预览面板样式（高度增加） --- */
         .preview-container {
             flex: 1;
             background: white;
@@ -118,8 +118,8 @@
             overflow-y: auto;
             font-size: 14px;
             line-height: 1.5;
-            min-height: 200px;
-            max-height: 300px;
+            min-height: 250px;
+            max-height: 500px; /* 增加高度 */
         }
         
         .preview-header {
@@ -153,6 +153,7 @@
         .preview-content {
             white-space: pre-wrap;
             font-family: 'Noto Sans SC', Arial, sans-serif;
+            min-height: 150px;
         }
         
         .preview-song-title {
@@ -181,6 +182,25 @@
             margin-top: 10px;
             padding-top: 8px;
             border-top: 1px solid #eee;
+        }
+        
+        /* 可编辑预览内容样式 */
+        .editable-preview {
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 10px;
+            background: #fff;
+            min-height: 300px;
+            max-height: 450px;
+            overflow-y: auto;
+            font-family: 'Noto Sans SC', Arial, sans-serif;
+            line-height: 1.5;
+        }
+        
+        .editable-preview:focus {
+            outline: none;
+            border-color: #3498db;
+            box-shadow: 0 0 5px rgba(52,152,219,0.3);
         }
         
         /* --- 右键菜单样式 --- */
@@ -298,6 +318,19 @@
             z-index: 1000;
             display: none;
         }
+        
+        /* --- 项目文件操作按钮 --- */
+        .project-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        .project-btn {
+            flex: 1;
+            padding: 10px;
+            font-size: 14px;
+        }
     </style>
 </head>
 <body>
@@ -365,6 +398,11 @@
                     <button class="btn-danger" onclick="clearAll()">清空全部</button>
                 </div>
 
+                <div class="project-buttons">
+                    <button class="btn-primary project-btn" onclick="exportProject()">导出项目文件</button>
+                    <button class="btn-success project-btn" onclick="importProject()">导入项目文件</button>
+                </div>
+
                 <div class="progress-bar">
                     <div class="progress" id="progressBar"></div>
                 </div>
@@ -378,7 +416,9 @@
                     <p>5. 右键点击歌曲行可进行纠错操作</p>
                     <p>6. 设置开始时间与持续时间，点击"开始处理"生成 Word 文档</p>
                     <p>7. 使用"保存进度"保存当前工作状态，下次可"加载进度"继续处理</p>
-                    <p>8. 右侧预览面板会实时显示将要提取的歌词内容</p>
+                    <p>8. 右侧预览面板会实时显示将要提取的歌词内容，可直接编辑</p>
+                    <p>9. 使用"导出项目文件"保存完整工作状态到.lyricproject文件</p>
+                    <p>10. 使用"导入项目文件"从.lyricproject文件恢复完整工作状态</p>
                 </div>
             </div>
 
@@ -394,6 +434,8 @@
                         <div class="preview-title">实时预览</div>
                         <div class="preview-controls">
                             <button class="preview-control-btn" onclick="refreshPreview()">🔄 刷新</button>
+                            <button class="preview-control-btn" onclick="toggleEditPreview()">✏️ 编辑</button>
+                            <button class="preview-control-btn" onclick="savePreviewEdits()">💾 保存</button>
                             <button class="preview-control-btn" onclick="clearPreview()">🗑️ 清空</button>
                         </div>
                     </div>
@@ -413,6 +455,7 @@
         <div class="context-menu-item" onclick="showCorrectionDialog()">纠错匹配</div>
         <div class="context-menu-item" onclick="rematchCurrentSong()">重新匹配此歌曲</div>
         <div class="context-menu-item" onclick="copySongName()">复制歌曲名称</div>
+        <div class="context-menu-item" onclick="insertRowBelow()">在下方插入行</div>
     </div>
 
     <!-- 纠错对话框 -->
@@ -448,6 +491,8 @@
         let previewUpdateTimer = null;
         let currentContextRowId = null;
         let autoSaveTimer = null;
+        let isPreviewEditable = false;
+        let editedPreviewContent = null;
 
         document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('lrcFiles').addEventListener('change', handleFileUpload);
@@ -466,6 +511,334 @@
             // 尝试自动加载上次保存的进度
             tryAutoLoadProgress();
         });
+
+        // --- 项目文件导出/导入功能 ---
+        function exportProject() {
+            try {
+                // 收集所有需要保存的数据
+                const projectData = {
+                    version: "1.0",
+                    timestamp: new Date().toISOString(),
+                    songRows: songRows.map(row => ({
+                        songName: row.songName,
+                        minutes: row.minutes,
+                        seconds: row.seconds,
+                        duration: row.duration
+                    })),
+                    playlist: document.getElementById('playlistInput').value,
+                    batchMinutes: document.getElementById('batchMinutes').value,
+                    batchSeconds: document.getElementById('batchSeconds').value,
+                    batchDuration: document.getElementById('batchDuration').value,
+                    lrcFiles: {}
+                };
+                
+                // 将歌词文件内容转换为Base64并保存
+                for (const fileName in lrcFiles) {
+                    if (lrcFiles.hasOwnProperty(fileName)) {
+                        const fileData = lrcFiles[fileName];
+                        // 将文本内容转换为Base64
+                        const base64Content = btoa(unescape(encodeURIComponent(fileData.content)));
+                        projectData.lrcFiles[fileName] = {
+                            name: fileData.name,
+                            content: base64Content,
+                            source: fileData.source
+                        };
+                    }
+                }
+                
+                // 创建项目文件
+                const projectBlob = new Blob([JSON.stringify(projectData, null, 2)], { 
+                    type: 'application/json' 
+                });
+                const url = URL.createObjectURL(projectBlob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `lyrics_project_${new Date().toISOString().slice(0,10)}.lyricproject`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                addLog('项目文件已导出', 'success');
+                showSaveStatus('项目文件已导出', 'success');
+            } catch (error) {
+                addLog('导出项目文件失败: ' + error.message, 'error');
+                showSaveStatus('导出失败', 'error');
+            }
+        }
+        
+        function importProject() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.lyricproject';
+            input.onchange = function(e) {
+                const file = e.target.files[0];
+                if (!file) return;
+                
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    try {
+                        const projectData = JSON.parse(event.target.result);
+                        
+                        // 验证项目文件格式
+                        if (!projectData.lrcFiles || !projectData.songRows) {
+                            throw new Error('无效的项目文件格式');
+                        }
+                        
+                        // 清空现有数据
+                        clearAll();
+                        
+                        // 恢复歌词文件
+                        lrcFiles = {};
+                        for (const fileName in projectData.lrcFiles) {
+                            if (projectData.lrcFiles.hasOwnProperty(fileName)) {
+                                const fileData = projectData.lrcFiles[fileName];
+                                // 将Base64内容转换回文本
+                                const textContent = decodeURIComponent(escape(atob(fileData.content)));
+                                lrcFiles[fileName] = {
+                                    name: fileData.name,
+                                    content: textContent,
+                                    source: fileData.source
+                                };
+                            }
+                        }
+                        
+                        // 恢复歌单
+                        document.getElementById('playlistInput').value = projectData.playlist || '';
+                        
+                        // 恢复批量设置
+                        document.getElementById('batchMinutes').value = projectData.batchMinutes || '';
+                        document.getElementById('batchSeconds').value = projectData.batchSeconds || '';
+                        document.getElementById('batchDuration').value = projectData.batchDuration || '10';
+                        
+                        // 恢复歌曲列表
+                        if (projectData.songRows && projectData.songRows.length > 0) {
+                            projectData.songRows.forEach(song => {
+                                addSongRow(
+                                    song.songName || '',
+                                    song.minutes || '',
+                                    song.seconds || '',
+                                    song.duration || 10
+                                );
+                            });
+                        }
+                        
+                        // 更新文件列表显示
+                        updateFileListDisplay();
+                        
+                        addLog(`项目文件已导入，恢复 ${Object.keys(lrcFiles).length} 个歌词文件和 ${projectData.songRows.length} 首歌曲`, 'success');
+                        showSaveStatus('项目文件已导入', 'success');
+                        
+                        // 更新预览
+                        updatePreview();
+                        
+                    } catch (error) {
+                        addLog('导入项目文件失败: ' + error.message, 'error');
+                        showSaveStatus('导入失败', 'error');
+                    }
+                };
+                reader.readAsText(file);
+            };
+            input.click();
+        }
+        
+        function updateFileListDisplay() {
+            const fileList = document.getElementById('fileList');
+            fileList.innerHTML = '';
+            
+            for (const fileName in lrcFiles) {
+                const fileItem = document.createElement('div');
+                fileItem.className = 'file-item';
+                fileItem.innerHTML = `
+                    <div class="file-name">${lrcFiles[fileName].source || fileName}</div>
+                    <div class="file-status status-ready">已导入</div>
+                `;
+                fileList.appendChild(fileItem);
+            }
+        }
+
+        // --- 预览编辑功能 ---
+        function toggleEditPreview() {
+            const previewContent = document.getElementById('previewContent');
+            
+            if (isPreviewEditable) {
+                // 退出编辑模式
+                previewContent.innerHTML = editedPreviewContent || previewContent.value;
+                isPreviewEditable = false;
+                addLog('已退出预览编辑模式', 'info');
+            } else {
+                // 进入编辑模式
+                editedPreviewContent = previewContent.innerHTML;
+                previewContent.innerHTML = '';
+                
+                const textarea = document.createElement('textarea');
+                textarea.className = 'editable-preview';
+                textarea.value = extractTextFromPreview(editedPreviewContent);
+                previewContent.appendChild(textarea);
+                
+                isPreviewEditable = true;
+                addLog('已进入预览编辑模式，编辑完成后点击保存', 'info');
+            }
+        }
+        
+        function savePreviewEdits() {
+            if (!isPreviewEditable) {
+                addLog('当前不在编辑模式', 'warning');
+                return;
+            }
+            
+            const textarea = document.querySelector('.editable-preview');
+            if (!textarea) {
+                addLog('未找到编辑内容', 'error');
+                return;
+            }
+            
+            const editedContent = textarea.value;
+            // 这里可以添加逻辑将编辑的内容应用到实际数据中
+            // 目前只是简单保存到预览显示
+            
+            document.getElementById('previewContent').innerHTML = formatPreviewContent(editedContent);
+            isPreviewEditable = false;
+            
+            addLog('预览编辑已保存', 'success');
+        }
+        
+        function extractTextFromPreview(htmlContent) {
+            // 从HTML预览内容中提取纯文本
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = htmlContent;
+            return tempDiv.textContent || tempDiv.innerText || '';
+        }
+        
+        function formatPreviewContent(textContent) {
+            // 将纯文本格式化为预览HTML
+            if (!textContent.trim()) {
+                return '<div class="preview-empty">暂无预览内容<br>请先上传文件并设置歌曲参数</div>';
+            }
+            
+            const lines = textContent.split('\n');
+            let html = '';
+            let inSongSection = false;
+            
+            for (const line of lines) {
+                if (line.trim() === '') continue;
+                
+                // 检测是否是歌曲标题（简单启发式规则）
+                if (line.includes(' - ') || line.includes('——') || 
+                    (line.length < 50 && !line.includes(':') && !line.includes('：') && !line.match(/\d{2}:\d{2}/))) {
+                    if (inSongSection) {
+                        html += '</div><div style="margin:10px 0; border-top:1px dashed #eee;"></div>';
+                    }
+                    html += `<div class="preview-song-title">${escapeHtml(line)}</div>`;
+                    inSongSection = true;
+                } else {
+                    html += `<div class="preview-lyric-line">${escapeHtml(line)}</div>`;
+                }
+            }
+            
+            return html;
+        }
+
+        // --- 插入行功能 ---
+        function insertRowBelow() {
+            if (!currentContextRowId) return;
+            
+            const currentIndex = songRows.findIndex(r => r.id === currentContextRowId);
+            if (currentIndex === -1) return;
+            
+            // 创建新行并插入到当前行后面
+            const newRowId = addSongRowAtPosition(currentIndex + 1);
+            
+            addLog('已在当前行下方插入新行', 'info');
+            document.getElementById('contextMenu').style.display = 'none';
+        }
+        
+        function addSongRowAtPosition(position, songName = '', minutes = '', seconds = '', duration = 10) {
+            const tbody = document.getElementById('songsTableBody');
+            const rowId = 'row_' + Date.now() + '_' + Math.random().toString(36).substr(2,9);
+            
+            // 创建新行
+            const row = document.createElement('tr');
+            row.id = rowId;
+            row.innerHTML = `
+                <td class="index-column index-cell">${position + 1}</td>
+                <td class="song-name-column">
+                    <input type="text" class="song-input" value="${escapeHtml(songName)}" placeholder="输入歌曲名称">
+                </td>
+                <td class="start-time-column">
+                    <div class="time-input-group">
+                        <input type="number" class="minute-input time-input" value="${minutes}" placeholder="分" min="0">
+                        <span class="time-separator">:</span>
+                        <input type="number" class="second-input time-input" value="${seconds}" placeholder="秒" min="0" max="59">
+                    </div>
+                </td>
+                <td class="duration-column"><input type="number" class="duration-input" value="${duration}" step="0.1" min="1"></td>
+                <td class="action-column">
+                    <div class="action-buttons">
+                        <button class="btn-primary action-btn" onclick="insertRowAt('${rowId}')">插入</button>
+                        <button class="btn-danger action-btn" type="button">删除</button>
+                    </div>
+                </td>
+            `;
+            
+            // 插入到指定位置
+            if (position >= tbody.children.length) {
+                tbody.appendChild(row);
+            } else {
+                tbody.insertBefore(row, tbody.children[position]);
+            }
+            
+            // 保存到 songRows
+            songRows.splice(position, 0, {
+                id: rowId,
+                songName: songName,
+                minutes: minutes,
+                seconds: seconds,
+                duration: duration
+            });
+            
+            // 绑定事件
+            const songInput = row.querySelector('.song-input');
+            const minuteInput = row.querySelector('.minute-input');
+            const secondInput = row.querySelector('.second-input');
+            const durationInput = row.querySelector('.duration-input');
+            const delBtn = row.querySelector('.action-btn.btn-danger');
+            
+            songInput.addEventListener('input', () => {
+                updateSongRow(rowId);
+                schedulePreviewUpdate();
+            });
+            minuteInput.addEventListener('input', () => {
+                updateSongRow(rowId);
+                schedulePreviewUpdate();
+            });
+            secondInput.addEventListener('input', () => {
+                updateSongRow(rowId);
+                schedulePreviewUpdate();
+            });
+            durationInput.addEventListener('input', () => {
+                updateSongRow(rowId);
+                schedulePreviewUpdate();
+            });
+            delBtn.addEventListener('click', () => deleteSongRow(rowId));
+            
+            // 右键菜单事件
+            row.addEventListener('contextmenu', (e) => showContextMenu(e, rowId));
+            
+            // 绑定自动补全
+            setupAutoComplete(songInput, () => Object.keys(lrcFiles), rowId);
+            
+            updateIndexes();
+            return rowId;
+        }
+        
+        function insertRowAt(rowId) {
+            const currentIndex = songRows.findIndex(r => r.id === rowId);
+            if (currentIndex === -1) return;
+            
+            addSongRowAtPosition(currentIndex + 1);
+            addLog('已在指定行下方插入新行', 'info');
+        }
 
         // --- 本地保存功能 ---
         function saveProgress() {
@@ -719,6 +1092,8 @@
         }
         
         function updatePreview() {
+            if (isPreviewEditable) return; // 如果正在编辑，不自动更新预览
+            
             if (Object.keys(lrcFiles).length === 0 || songRows.length === 0) {
                 showPreviewEmpty();
                 return;
@@ -1002,6 +1377,7 @@
                 <td class="duration-column"><input type="number" class="duration-input" value="${duration}" step="0.1" min="1"></td>
                 <td class="action-column">
                     <div class="action-buttons">
+                        <button class="btn-primary action-btn" onclick="insertRowAt('${rowId}')">插入</button>
                         <button class="btn-danger action-btn" type="button">删除</button>
                     </div>
                 </td>
@@ -1022,7 +1398,7 @@
             const minuteInput = row.querySelector('.minute-input');
             const secondInput = row.querySelector('.second-input');
             const durationInput = row.querySelector('.duration-input');
-            const delBtn = row.querySelector('.action-btn');
+            const delBtn = row.querySelector('.action-btn.btn-danger');
 
             songInput.addEventListener('input', () => {
                 updateSongRow(rowId);
@@ -1260,6 +1636,8 @@
             updateProgress(0);
             lrcFiles = {};
             songRows = [];
+            isPreviewEditable = false;
+            editedPreviewContent = null;
             // 移除遗留自动补全 wrapper（若有）
             document.querySelectorAll('.autocomplete-list').forEach(e => e.remove());
             for (let i = 0; i < 3; i++) addSongRow();
