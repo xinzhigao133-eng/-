@@ -6,6 +6,7 @@
     <title>🎵 歌词提取工具（增强版）</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
+        /* 保持之前的所有CSS样式不变 */
         * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans SC', Arial;
@@ -300,19 +301,6 @@
             display: none;
         }
         
-        /* --- 项目文件操作按钮 --- */
-        .project-buttons {
-            display: flex;
-            gap: 10px;
-            margin-top: 10px;
-        }
-        
-        .project-btn {
-            flex: 1;
-            padding: 10px;
-            font-size: 14px;
-        }
-        
         /* --- 搜索框样式 --- */
         .search-container {
             display: flex;
@@ -347,13 +335,6 @@
             font-size: 12px;
             color: #7f8c8d;
             margin-left: 10px;
-        }
-        
-        /* --- 搜索结果高亮 --- */
-        .search-highlight {
-            background-color: #fff3cd;
-            padding: 2px 4px;
-            border-radius: 2px;
         }
     </style>
 </head>
@@ -391,7 +372,7 @@
 爱情转移
 红玫瑰
 ..."></textarea>
-                    <div class="playlist-help">每行输入一首歌曲名称，系统将严格按照此顺序填充歌曲列表</div>
+                    <div class="playlist-help">每行输入一首歌曲名称（不需要歌手名），系统将严格按照此顺序填充歌曲列表</div>
                 </div>
 
                 <h2 class="section-title">歌曲列表编辑</h2>
@@ -430,11 +411,6 @@
                     <button class="btn-danger" onclick="clearAll()">清空全部</button>
                 </div>
 
-                <div class="project-buttons">
-                    <button class="btn-primary project-btn" onclick="exportProject()">导出项目文件</button>
-                    <button class="btn-success project-btn" onclick="importProject()">导入项目文件</button>
-                </div>
-
                 <div class="progress-bar">
                     <div class="progress" id="progressBar"></div>
                 </div>
@@ -442,7 +418,7 @@
                 <div class="instructions">
                     <h3>使用说明：</h3>
                     <p>1. 上传 LRC 文件或 ZIP 压缩包（支持多文件）</p>
-                    <p>2. 在"歌单顺序设置"中输入您的歌单（每行一首歌名）</p>
+                    <p>2. 在"歌单顺序设置"中输入您的歌单（每行一首歌名，不需要歌手名）</p>
                     <p>3. 点击"按歌单顺序填充"严格按照歌单顺序填充歌曲列表</p>
                     <p>4. 在"歌曲名称"输入时会根据上传的所有文件名联想建议（支持上下键和回车）</p>
                     <p>5. 使用右上角搜索框可以快速搜索和定位歌曲</p>
@@ -450,8 +426,6 @@
                     <p>7. 设置开始时间与持续时间，点击"开始处理"生成 Word 文档</p>
                     <p>8. 使用"保存进度"保存当前工作状态，下次可"加载进度"继续处理</p>
                     <p>9. 右侧预览面板会实时显示将要提取的歌词内容</p>
-                    <p>10. 使用"导出项目文件"保存完整工作状态到.lyricproject文件</p>
-                    <p>11. 使用"导入项目文件"从.lyricproject文件恢复完整工作状态</p>
                 </div>
             </div>
 
@@ -583,151 +557,6 @@
                 addLog(`未找到包含"${query}"的歌曲`, 'warning');
             } else {
                 addLog(`找到 ${matchCount} 个包含"${query}"的歌曲`, 'info');
-            }
-        }
-
-        // --- 项目文件导出/导入功能 ---
-        function exportProject() {
-            try {
-                // 收集所有需要保存的数据
-                const projectData = {
-                    version: "1.0",
-                    timestamp: new Date().toISOString(),
-                    songRows: songRows.map(row => ({
-                        songName: row.songName,
-                        minutes: row.minutes,
-                        seconds: row.seconds,
-                        duration: row.duration
-                    })),
-                    playlist: document.getElementById('playlistInput').value,
-                    batchMinutes: document.getElementById('batchMinutes').value,
-                    batchSeconds: document.getElementById('batchSeconds').value,
-                    batchDuration: document.getElementById('batchDuration').value,
-                    lrcFiles: {}
-                };
-                
-                // 将歌词文件内容转换为Base64并保存
-                for (const fileName in lrcFiles) {
-                    if (lrcFiles.hasOwnProperty(fileName)) {
-                        const fileData = lrcFiles[fileName];
-                        // 将文本内容转换为Base64
-                        const base64Content = btoa(unescape(encodeURIComponent(fileData.content)));
-                        projectData.lrcFiles[fileName] = {
-                            name: fileData.name,
-                            content: base64Content,
-                            source: fileData.source
-                        };
-                    }
-                }
-                
-                // 创建项目文件
-                const projectBlob = new Blob([JSON.stringify(projectData, null, 2)], { 
-                    type: 'application/json' 
-                });
-                const url = URL.createObjectURL(projectBlob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `lyrics_project_${new Date().toISOString().slice(0,10)}.lyricproject`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-                
-                addLog('项目文件已导出', 'success');
-                showSaveStatus('项目文件已导出', 'success');
-            } catch (error) {
-                addLog('导出项目文件失败: ' + error.message, 'error');
-                showSaveStatus('导出失败', 'error');
-            }
-        }
-        
-        function importProject() {
-            const input = document.createElement('input');
-            input.type = 'file';
-            input.accept = '.lyricproject';
-            input.onchange = function(e) {
-                const file = e.target.files[0];
-                if (!file) return;
-                
-                const reader = new FileReader();
-                reader.onload = function(event) {
-                    try {
-                        const projectData = JSON.parse(event.target.result);
-                        
-                        // 验证项目文件格式
-                        if (!projectData.lrcFiles || !projectData.songRows) {
-                            throw new Error('无效的项目文件格式');
-                        }
-                        
-                        // 清空现有数据
-                        clearAll();
-                        
-                        // 恢复歌词文件
-                        lrcFiles = {};
-                        for (const fileName in projectData.lrcFiles) {
-                            if (projectData.lrcFiles.hasOwnProperty(fileName)) {
-                                const fileData = projectData.lrcFiles[fileName];
-                                // 将Base64内容转换回文本
-                                const textContent = decodeURIComponent(escape(atob(fileData.content)));
-                                lrcFiles[fileName] = {
-                                    name: fileData.name,
-                                    content: textContent,
-                                    source: fileData.source
-                                };
-                            }
-                        }
-                        
-                        // 恢复歌单
-                        document.getElementById('playlistInput').value = projectData.playlist || '';
-                        
-                        // 恢复批量设置
-                        document.getElementById('batchMinutes').value = projectData.batchMinutes || '';
-                        document.getElementById('batchSeconds').value = projectData.batchSeconds || '';
-                        document.getElementById('batchDuration').value = projectData.batchDuration || '10';
-                        
-                        // 恢复歌曲列表
-                        if (projectData.songRows && projectData.songRows.length > 0) {
-                            projectData.songRows.forEach(song => {
-                                addSongRow(
-                                    song.songName || '',
-                                    song.minutes || '',
-                                    song.seconds || '',
-                                    song.duration || 10
-                                );
-                            });
-                        }
-                        
-                        // 更新文件列表显示
-                        updateFileListDisplay();
-                        
-                        addLog(`项目文件已导入，恢复 ${Object.keys(lrcFiles).length} 个歌词文件和 ${projectData.songRows.length} 首歌曲`, 'success');
-                        showSaveStatus('项目文件已导入', 'success');
-                        
-                        // 更新预览
-                        updatePreview();
-                        
-                    } catch (error) {
-                        addLog('导入项目文件失败: ' + error.message, 'error');
-                        showSaveStatus('导入失败', 'error');
-                    }
-                };
-                reader.readAsText(file);
-            };
-            input.click();
-        }
-        
-        function updateFileListDisplay() {
-            const fileList = document.getElementById('fileList');
-            fileList.innerHTML = '';
-            
-            for (const fileName in lrcFiles) {
-                const fileItem = document.createElement('div');
-                fileItem.className = 'file-item';
-                fileItem.innerHTML = `
-                    <div class="file-name">${lrcFiles[fileName].source || fileName}</div>
-                    <div class="file-status status-ready">已导入</div>
-                `;
-                fileList.appendChild(fileItem);
             }
         }
 
@@ -981,7 +810,9 @@
             // 搜索匹配的歌曲
             const matches = [];
             for (const fileName in lrcFiles) {
-                if (fileName.toLowerCase().includes(query.toLowerCase())) {
+                // 从文件名中提取歌名部分（去掉歌手名）
+                const songName = extractSongNameFromFileName(fileName);
+                if (songName.toLowerCase().includes(query.toLowerCase())) {
                     matches.push(fileName);
                 }
             }
@@ -997,9 +828,9 @@
                         // 更新当前行的歌曲名称
                         const rowIndex = songRows.findIndex(r => r.id === currentContextRowId);
                         if (rowIndex !== -1) {
-                            songRows[rowIndex].songName = match;
-                            document.querySelector(`#${currentContextRowId} .song-input`).value = match;
-                            addLog(`已更正歌曲为: ${match}`, 'success');
+                            songRows[rowIndex].songName = extractSongNameFromFileName(match);
+                            document.querySelector(`#${currentContextRowId} .song-input`).value = extractSongNameFromFileName(match);
+                            addLog(`已更正歌曲为: ${extractSongNameFromFileName(match)}`, 'success');
                             schedulePreviewUpdate();
                         }
                         closeCorrectionDialog();
@@ -1116,7 +947,7 @@
                 }
                 
                 if (matchedFiles.length === 0) {
-                    previewContent += `<div class="preview-song-title">${escapeHtml(song.songName)}</div>`;
+                    previewContent += `<div class="preview-song-title">${i+1}. 《${escapeHtml(song.songName)}》</div>`;
                     previewContent += `<div class="preview-lyric-line" style="color:#e74c3c;">❌ 未找到匹配的歌词文件</div>`;
                     continue;
                 }
@@ -1124,7 +955,7 @@
                 const matchedFile = lrcFiles[matchedFiles[0]];
                 const result = extractLyrics(matchedFile.content, song.songName, startTime, song.duration);
                 
-                previewContent += `<div class="preview-song-title">${escapeHtml(song.songName)}</div>`;
+                previewContent += `<div class="preview-song-title">${i+1}. 《${escapeHtml(song.songName)}》</div>`;
                 
                 if (result.success && result.lyrics.length > 0) {
                     result.lyrics.forEach(lyric => {
@@ -1491,18 +1322,40 @@
             songRows = [];
             const keys = Object.keys(lrcFiles);
             if (keys.length === 0) { addLog('请先上传 LRC 文件', 'error'); return; }
-            for (const name of keys) addSongRow(name, '', '', 10);
+            for (const name of keys) {
+                // 从文件名中提取歌名部分（去掉歌手名）
+                const songName = extractSongNameFromFileName(name);
+                addSongRow(songName, '', '', 10);
+            }
             addLog(`已按文件名填充 ${keys.length} 首歌曲`, 'success');
             schedulePreviewUpdate();
+        }
+
+        // ---------- 从文件名提取歌名 ----------
+        function extractSongNameFromFileName(fileName) {
+            // 处理 "歌名 - 歌手名" 格式
+            if (fileName.includes(' - ')) {
+                return fileName.split(' - ')[0].trim();
+            }
+            return fileName;
         }
 
         // ---------- 模糊匹配（用于处理时匹配文件名） ----------
         function fuzzyMatch(pattern, string) {
             if (!pattern) return true;
+            
+            // 从文件名中提取歌名部分
+            const songNameFromFile = extractSongNameFromFileName(string);
+            
             const normalizedPattern = pattern.toLowerCase().replace(/\s/g, '');
             const normalizedString = string.toLowerCase().replace(/\s/g, '');
+            const normalizedSongName = songNameFromFile.toLowerCase().replace(/\s/g, '');
+            
+            // 检查是否匹配完整文件名或歌名部分
             for (let char of normalizedPattern) {
-                if (!normalizedString.includes(char)) return false;
+                if (!normalizedString.includes(char) && !normalizedSongName.includes(char)) {
+                    return false;
+                }
             }
             return true;
         }
@@ -1575,7 +1428,9 @@
                 // 找到匹配的文件名（fuzzy）
                 const matchedFiles = [];
                 for (const fileName in lrcFiles) {
-                    if (fuzzyMatch(song.songName, fileName)) matchedFiles.push(fileName);
+                    if (fuzzyMatch(song.songName, fileName)) {
+                        matchedFiles.push(fileName);
+                    }
                 }
 
                 if (matchedFiles.length === 0) {
@@ -1587,7 +1442,8 @@
                 const matchedFile = lrcFiles[matchedFiles[0]];
                 const result = extractLyrics(matchedFile.content, song.songName, startTime, song.duration);
                 if (result.success && result.lyrics.length > 0) {
-                    docContent += `<h2>${escapeHtml(song.songName)}</h2>`;
+                    // 使用序号和书名号格式化歌曲标题
+                    docContent += `<h2>${i+1}. 《${escapeHtml(song.songName)}》</h2>`;
                     for (const lyric of result.lyrics) docContent += `<p>${escapeHtml(lyric)}</p>`;
                     processedCount++;
                 }
@@ -1670,17 +1526,24 @@
                 const candidates = (typeof getData === 'function') ? getData() : (Array.isArray(getData) ? getData : []);
                 if (!candidates || candidates.length === 0) { closeWrapper(); return; }
 
-                const matches = candidates.filter(item => item.toLowerCase().includes(val));
+                const matches = candidates.filter(item => {
+                    // 从文件名中提取歌名部分进行匹配
+                    const songName = extractSongNameFromFileName(item);
+                    return songName.toLowerCase().includes(val) || item.toLowerCase().includes(val);
+                });
+                
                 if (!matches || matches.length === 0) { closeWrapper(); return; }
 
                 matches.slice(0, AUTOCOMPLETE_MAX).forEach(match => {
                     const div = document.createElement('div');
                     div.className = 'autocomplete-item';
-                    div.textContent = match;
+                    // 显示歌名部分，但保存完整文件名
+                    div.textContent = extractSongNameFromFileName(match);
                     // mousedown 保证在 input blur 前可以捕获（click 事件可能晚于 blur）
                     div.addEventListener('mousedown', function(e) {
                         e.preventDefault();
-                        input.value = match;
+                        // 只填充歌名部分，不包含歌手名
+                        input.value = extractSongNameFromFileName(match);
                         updateSongRow(rowId);
                         closeWrapper();
                         schedulePreviewUpdate();
